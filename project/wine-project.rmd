@@ -1,0 +1,680 @@
+# White Wine Quality Exploration
+
+by Bruno Yamada
+
+---
+
+## White Wine Dataset Summary and Credits
+
+This dataset if one of two dataset which has been made public available for research, one for red and another for white wine samples, The white variant has been chosen since it had more observations.
+
+The two datasets are related to red and white variants of the Portuguese "Vinho Verde" wine, and variables include objective tests(e.g. PH values), residual sugar levels after fermentation, density compared to water, alcohol percentage, among others, including score, where each sample was evaluated by at least 3 wine experts, giving a rating between 0 (very bad) and 10 (very excellent).
+
+Credits to:
+```
+  P. Cortez, A. Cerdeira, F. Almeida, T. Matos and J. Reis. 
+  Modeling wine preferences by data mining from physicochemical properties.
+  In Decision Support Systems, Elsevier, 47(4):547-553. ISSN: 0167-9236.
+
+  Available at: [@Elsevier] http://dx.doi.org/10.1016/j.dss.2009.05.016
+                [Pre-press (pdf)] http://www3.dsi.uminho.pt/pcortez/winequality09.pdf
+                [bib] http://www3.dsi.uminho.pt/pcortez/dss09.bib
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Loading libraries
+library('bitops')
+library('RCurl')
+# install.packages('ggplot2')
+library(ggplot2)
+library(GGally)
+library(gridExtra)
+library(lattice)
+library(memisc)
+library(RColorBrewer)
+library(scales)
+# install.packages("cowplot")
+library(cowplot)
+# install.packages('dataPreparation')
+library(dataPreparation)
+```
+
+```{r echo=FALSE, Load_the_Data}
+# Loading the Dataset
+df <- read.csv('./wineQualityWhites.csv')
+df$X <- NULL
+```
+
+---
+
+## Dataset Specifics
+
+This dataset has __4898 observations__, with __12 variables__ for each observation.
+
+Variables in the Dataset:
+
+1. __fixed acidity__: most acids involved with wine or fixed or nonvolatile (do not evaporate readily)
+2. __volatile acidity__: the amount of acetic acid in wine, which at too high of levels can lead to an unpleasant, vinegar taste
+3. __citric acid__: found in small quantities, citric acid can add 'freshness' and flavor to wines
+4. __residual sugar__: the amount of sugar remaining after fermentation stops, it's rare to find wines with less than 1 gram/liter and wines with greater than 45 grams/liter are considered sweet
+5. __chlorides__: the amount of salt in the wine
+6. __free sulfur dioxide__: the free form of SO2 exists in equilibrium between molecular SO2 (as a dissolved gas) and bisulfite ion; it prevents microbial growth and the oxidation of wine
+7. __total sulfur dioxide__: amount of free and bound forms of S02; in low concentrations, SO2 is mostly undetectable in wine, but at free SO2 concentrations over 50 ppm, SO2 becomes evident in the nose and taste of wine
+8. __density__: the density of water is close to that of water depending on the percent alcohol and sugar content
+9. __pH__: describes how acidic or basic a wine is on a scale from 0 (very acidic) to 14 (very basic); most wines are between 3-4 on the pH scale
+10. __sulphates__: a wine additive which can contribute to sulfur dioxide gas (S02) levels, wich acts as an antimicrobial and antioxidant
+11. __alcohol__: the percent alcohol content of the wine
+12. __quality__ (score between 0 and 10)
+
+---
+
+## 1. Univariate Plots Section
+
+### 1.1. How is wine quality distributed ?
+
+```{r echo=FALSE, Univariate_Plots}
+ggplot(aes(x = quality), data = df) +
+  geom_histogram(binwidth=1, fill="darkred", color="white") +
+  labs(title='Wine Quality Histogram')
+```
+
+It seems we have a normal-like distribution, also, apparently there are no wines with quality above 8, or below 3, let's confirm by improving our plot:
+
+```{r echo=FALSE, warning=FALSE}
+ggplot(aes(x = quality), data = df) +
+  geom_histogram(binwidth=1, fill="darkred", color="white") +
+  stat_bin(binwidth = 1, aes(y=..count.., label=..count..), geom="text", vjust=-.5) +
+  scale_x_continuous(limits = c(0, 10), breaks = seq(0, 10, 1)) +
+  labs(title='Wine Quality Histogram')
+```
+
+In fact, it appears experts have graded no wine as deserving of a quality score above 9 or below 3, in fact, most wines stood above 5, which was expected to be a wine of average quality.
+
+### 1.2. Other variables
+
+Now lets take a look over all the variables to see their distribution:
+
+```{r echo=FALSE, warning=FALSE, fig.width=15, fig.height=10}
+n <- ncol(df)
+qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'qual',]
+col_vector = unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
+
+list <-lapply(1:ncol(df),
+                function(col) ggplot(aes(x = df[[col]]), data = df) +
+                  geom_histogram(fill=col_vector[col], binwidth = (max(df[[col]]) - min(df[[col]]) ) / 100,color="white") + 
+                  ggtitle(colnames(df)[col]) + 
+                  
+                  xlab(colnames(df)[col])
+              )
+cowplot::plot_grid(plotlist = list)
+
+list <-lapply(1:ncol(df),
+                function(col) ggplot(aes(x = '', y=df[[col]]), data = df) +
+                  geom_boxplot() + 
+                  ggtitle(colnames(df)[col]) + 
+                  xlab(colnames(df)[col]) +
+                  ylab('value')
+              )
+cowplot::plot_grid(plotlist = list)
+```
+
+Most variables appear to be normally distributed, where alcohol appears bimodal 
+
+Looking at the boxplots, nearly all of the variables have some outliers which are values with at least three times the height of the box (interquartile range)
+
+### 1.3. Residual Sugar
+
+Lets take a look at a zoomed version for residual.sugar, and its outliers:
+
+```{r echo=FALSE, warning=FALSE, fig.width=20, fig.height=10}
+ggplot(aes(x = residual.sugar), data = df) +
+                  geom_histogram(binwidth = (max(df$residual.sugar) - min(df$residual.sugar) ) / 150,color="white") + 
+                  ggtitle('residual.sugar') + 
+                  xlim(18, 80) +
+                  xlab('residual.sugar')
+```
+So we can see that although most wines are in the 1 to 20 range, there are a couple wines with a score above 30, and one going as far as above 65, where according to description, a score around 45 is given to a wine considered sweet
+
+### 1.4. Tons of outliers
+
+Chlorides, Volatile Acidity and Free Sulfur Dioxide are the ones which the most outliers, as can be seen in the following boxplots:
+
+```{r echo=FALSE, warning=FALSE, fig.width=20, fig.height=10}
+
+p1 = ggplot(aes(x = '', y=df$chlorides), data = df) +
+        geom_boxplot() + 
+        ggtitle('chlorides') + 
+        xlab('chlorides') +
+        ylab('value')
+           
+p2 = ggplot(aes(x = '', y=df$volatile.acidity), data = df) +
+        geom_boxplot() + 
+        ggtitle('volatile.acidity') + 
+        xlab('volatile.acidity') +
+        ylab('value')
+
+p3 = ggplot(aes(x = '', y=df$free.sulfur.dioxide), data = df) +
+        geom_boxplot() + 
+        ggtitle('free.sulfur.dioxide') + 
+        xlab('free.sulfur.dioxide') +
+        ylab('value')
+              
+grid.arrange(p1, p2, p3, nrow = 1)
+```
+
+# 2. Univariate Analysis
+
+### What is the structure of your dataset?
+
+Our dataset has 4898 wines with 12 variables each, none of the variables is discriminative, thus we have no ordered factor variable.
+
+Other Observations:
+- No wine has a score below 3, neither above 9 (it ranges from 0 to 10)
+- most variables have outliers, with some going as far as more than 20 times the interquartile range (chlorides)
+
+### What is/are the main feature(s) of interest in your dataset?
+
+*quality* - as it is the overall score for each given wine 
+
+### What other features in the dataset do you think will help support your \
+investigation into your feature(s) of interest?
+
+*alcohol* - due to wine being an alcoholic beverage, although it might not be entirely correlated to the overall quality
+*density* - due to the low amount of outliers, and the shape of the histogram which might suggest a some correlation to quality
+
+### Did you create any new variables from existing variables in the dataset?
+
+All of the variables appears to be fairly independent from one another, except for the **quality** which could be related to all of the other variables, or a combination of them
+
+### Of the features you investigated, were there any unusual distributions? \
+
+No feature was unusually distributed, most seemed to resemble normal or long-tailed negative binomial distributions.
+
+---
+
+# 3. Bivariate Plots Section
+
+First let us take a look at how our variables are related to on another:
+
+## 3.1. Overall analysis between pair of variables
+
+> this plot was created using ggplot2's ggpairs function
+
+```{r echo=FALSE, fig.width=18, fig.height=10}
+ggpairs(df, progress = FALSE)
+```
+
+All the variables except for one show low correlation scores, here are some points of interest:
+
+Interpreting the Scores:
+
+- correlation scores ranges from -1.0 to 1.0
+- a strong correlation can be indicated by a correlation score value of  0.7 or more
+- values closer to zero shows no correlation between the variables
+- values lower than zero shows a negative correlation or relationship between the variables
+- values lower than -0.7 shows a strong negative correlation between the variables
+
+### Notable points:
+
+- Density has a correlation score above *0.2* with most of the variables
+- Density has a correlation score of *0.83* with Residual Sugar
+- Density has a *negative* correlation score of -0.78 with Alcohol
+
+> as most variables do not have a high correlation scores between one another, \
+they could be used for algorithms were the inductive bias is that variables are\
+independent from one another.
+
+> a high correlation score with another variable can be an indicator that we \
+could use the first variable as an input to predict the other.
+
+## 3.2. Density and Residual Sugar
+
+So Density showed a high correlation with Residual Sugar of *0.83*, indicating that the
+sweeter the wine, the higher the density, as we can see by the red line below.
+
+```{r echo=FALSE}
+ggplot(aes(x=density, y=residual.sugar), data=df) +
+  geom_point(alpha = 1/5, position = "jitter", colour="#55557e") +
+  coord_cartesian(xlim = c(min(df$density), quantile(df$density, 0.995)),
+                  ylim = c(min(df$residual.sugar), quantile(df$residual.sugar, 0.995))) +
+  geom_smooth(method='lm', color='red')
+```
+
+It might not be as linearly distributed as we expect, but still the correlation is clear.
+
+## 3.3. Density and Alcohol
+
+On the other hand, with a correlation score of *-0.78*, alcohol has an inverse
+relationship with density,were the higher the percentage of alcohol, the lower 
+is the density of the wine,
+it's curious and makes sense when you think about it
+
+```{r echo=FALSE}
+ggplot(aes(x=density, y=alcohol), data=df) +
+  geom_point(alpha = 1/5, position = "jitter", colour="#971111") +
+  coord_cartesian(xlim = c(min(df$density), quantile(df$density, 0.995)),
+                  ylim = c(min(df$alcohol), quantile(df$alcohol, 0.995))) +
+  geom_smooth(method='lm', color='red')
+```
+
+## 3.3. *Free* and *Total* Sulfur Dioxide
+
+Their correlation score was *0.61*, which is to be expected as *total sulfur dioxide*
+is a variable composed by *free* and *bound* sulfur dioxide, buth with a score of *0.6*
+you can see that the data points are more spread around the red line.
+
+```{r echo=FALSE}
+ggplot(aes(x=free.sulfur.dioxide, y=total.sulfur.dioxide), data=df) +
+  geom_point(alpha = 1/5, position = "jitter", colour="#55557e") +
+  coord_cartesian(xlim = c(min(df$free.sulfur.dioxide), quantile(df$free.sulfur.dioxide, 0.995)),
+                  ylim = c(min(df$total.sulfur.dioxide), quantile(df$total.sulfur.dioxide, 0.995))) +
+  geom_smooth(method='lm', color='red')
+```
+
+## 3.4. Quality and other variables
+
+Quality had no big correlation with any other variable, but 2 were noticeable:
+
+- Alcohool (0.43)
+- Density (-0.30)
+
+And we start to see the dots connecting, wines with higher scores had a correlation
+with alcohol percentages (although low, still noticeable), and the alcohol the wine
+has, usually, the lower the density for said wine, so, just as well, a wine with
+a high density, would have less alcohol, thus lower quality score.
+
+```{r echo=FALSE}
+p1 = ggplot(aes(x=quality, y=alcohol), data=df) +
+  geom_point(alpha = 1/5, position = "jitter", colour="#55557e") +
+  coord_cartesian(xlim = c(min(df$quality), 10),
+                  ylim = c(min(df$alcohol), quantile(df$alcohol, .995))) +
+  geom_smooth(method='lm', color='red') +
+  ggtitle('Quality x Alcohol')
+
+p2 = ggplot(aes(x=quality, y=density), data=df) +
+  geom_point(alpha = 1/5, position = "jitter", colour="#971111") +
+  coord_cartesian(xlim = c(min(df$quality), 10),
+                  ylim = c(min(df$density), quantile(df$density, .995))) +
+  geom_smooth(method='lm', color='red') +
+  ggtitle('Quality x Density')
+
+grid.arrange(p1, p2, nrow = 2)
+```
+
+# 4. Bivariate Analysis
+
+### How did the feature(s) of interest vary with other features in \
+the dataset?
+
+In this section we saw that our feature of intereset, *quality*, had lower than
+expected correlation with most variables, noticeable though, it had a higher correlation
+with *alcohol* and negative correlation with *density*, which were the other
+features chosen as worth paying attention.
+
+### Did you observe any interesting relationships between the other features?
+
+*density* and *alcohol* had a high negative correlation score between them, 
+meaning the higher one gets, the lower is the other.
+
+*density* and *residual sugar* had a high correlation score
+
+*free sulfur dioxide* and *total sulfur dioxide* had a high correlation score
+as one can be thought of as composed by the other, although it still was lower
+then expected when you think about it that way. 
+
+### What was the strongest relationship you found?
+
+*density* and *residual sugar* had the strongest relationship, although \
+for out observations, the most important relationship was between quality and \
+alcohol
+
+# 5. Multivariate Plots Section
+
+Now lets investigate multiple variables combined
+
+## 5.1. more Alcohol + less Density = better wines?
+
+So, based on the previous plots, we could assume that, to get a better quality wine, we need:
+- a higher alcohol percentage
+- a low wine density score
+
+Let's plot a graph to check:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(data = df,
+       aes(y = density, x = alcohol,
+           color = quality)) +
+  scale_color_gradient(low="yellow", high="red") +
+  coord_cartesian(xlim = c(min(df$alcohol), quantile(df$alcohol, 0.999)),
+                  ylim = c(min(df$density), quantile(df$density, 0.999))) +
+  labs(title = "Density x Alcohol (colored by quality)", x = "Alcohol", y = "Density", color = "Quality") +
+  # scale_color_gradientn(colours = rainbow(5)) +
+  geom_point(alpha = 1, size = 1) +
+  geom_smooth(method='lm', color='gray')
+```
+
+As noted before, __most wines are of average quality__, so when we colored the \
+points by color, it got a little confusing, but if we change our gradient, \
+__adding a third color__, and a darker theme, it becomes clearer:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(data = df,
+       aes(y = density, x = alcohol,
+           color = quality)) +
+  # scale_color_gradient(low="blue", high="red") +
+  scale_color_gradient2(midpoint=mean(df$quality), low="red", mid="white", high="blue", space ="Lab") +
+  coord_cartesian(xlim = c(min(df$alcohol), quantile(df$alcohol, 0.999)),
+                  ylim = c(min(df$density), quantile(df$density, 0.999))) +
+  labs(title = "Density x Alcohol (colored by quality)", x = "Alcohol", y = "Density", color = "Quality") +
+  # scale_color_gradientn(colours = rainbow(5)) +
+  geom_point(alpha = 1, size = 1) +
+  theme_dark() +
+  geom_smooth(method='lm', color='gray')
+```
+
+*we also took a quantile equivalent to 99.9% of our data, to get a cleaner graph*
+
+Now we can clearly see where most wines of higher quality are located, and it \
+appears we were right:
+
+Wines with __higher alcohol percentages__ and __lower density scores__ are \
+higher quality, as noted by the points that tends towards __blue__.
+
+But is that all?
+
+If alcohol and density has such a high correlation with quality, positive or 
+negative, we could take a look at the __other features and their correlations with density or alcohol__.
+
+## 5.2. Correlations with Alcohol and Density (and quality)
+
+Let us check some features which show high correlations with alcohol:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data = df,
+       aes(y = chlorides, x = alcohol,
+           color = quality)) +
+  # scale_color_gradient(low="red", high="blue") +
+  scale_color_gradient2(midpoint=mean(df$quality), low="red", mid="white", high="blue", space="rgb") +
+  coord_cartesian(xlim = c(min(df$alcohol), quantile(df$alcohol, 0.999)),
+                  ylim = c(min(df$chlorides), quantile(df$chlorides, 0.999))) +
+  # scale_color_gradientn(colours = rainbow(5)) +
+  geom_point(alpha = 1, size = 1) +
+  theme_dark() +
+  labs(title = "Chlorides x Alcohol (colored by quality)") +
+  geom_smooth(method='lm', color='gray')
+```
+
+So, chlorides does not appears to affect wine quality as long as its around 0.5
+
+But a __high chloride (amount of salt) can definitely reduce the quality of the wine__ \
+as noted by the red points, nearly all points with chlorides above 0.10 are \
+average or lower quality wines.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data = df,
+       aes(y = total.sulfur.dioxide, x = alcohol,
+           color = quality)) +
+  # scale_color_gradient(low="red", high="blue") +
+  scale_color_gradient2(midpoint=mean(df$quality), low="red", mid="white", high="blue", space="rgb") +
+  coord_cartesian(xlim = c(min(df$alcohol), quantile(df$alcohol, 0.999)),
+                  ylim = c(min(df$total.sulfur.dioxide), quantile(df$total.sulfur.dioxide, 0.999))) +
+  # scale_color_gradientn(colours = rainbow(5)) +
+  geom_point(alpha = 1, size = 1) +
+  theme_dark() +
+  labs(title = "Total Sulfur Dioxide x Alcohol (colored by quality)") +
+  geom_smooth(method='lm', color='gray')
+```
+
+Total Sulfur Dioxide can also somewhat influence the quality, although not as \
+much as chlorides, as long as it stays somewhere bellow 220, it should have little
+effect on wine quality, but a higher amount will affect the quality, so we confirmed
+the feature description:
+
+> *"... in low concentrations, SO2 is mostly undetectable in wine, but at free 
+SO2 concentrations over 50 ppm, SO2 becomes evident in the nose and taste of wine."*
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data = df,
+       aes(y = residual.sugar, x = alcohol,
+           color = quality)) +
+  # scale_color_gradient(low="red", high="blue") +
+  scale_color_gradient2(midpoint=mean(df$quality), low="red", mid="white", high="blue", space="rgb") +
+  coord_cartesian(xlim = c(min(df$alcohol), quantile(df$alcohol, 0.999)),
+                  ylim = c(min(df$residual.sugar), quantile(df$residual.sugar, 0.999))) +
+  # scale_color_gradientn(colours = rainbow(5)) +
+  geom_point(alpha = 1, size = 1) +
+  theme_dark() +
+  labs(title = "Residual Sugar x Alcohol (colored by quality)") +
+  geom_smooth(method='lm', color='gray')
+```
+
+Residual has a high correlation with alcohol, and to some extend can affect the
+quality, as seen in the graph, __values higher than 15 can reduce the quality__, below
+that, it does not appears to have much of a effect
+
+
+Lastly, the plot below showed an interesting pattern:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data = df,
+       aes(y = residual.sugar, x = density,
+           color = quality)) +
+  # scale_color_gradient(low="red", high="blue") +
+  scale_color_gradient2(midpoint=mean(df$quality), low="red", mid="white", high="blue", space="rgb") +
+  coord_cartesian(xlim = c(min(df$density), quantile(df$density, 0.999)),
+                  ylim = c(min(df$residual.sugar), quantile(df$residual.sugar, 0.999))) +
+  # scale_color_gradientn(colours = rainbow(5)) +
+  geom_point(alpha = 1, size = 1) +
+  theme_dark() +
+  labs(title = "Residual Sugar x Density (colored by quality)") +
+  geom_smooth(method='lm', color='gray')
+```
+
+So, we know by previous plots that wine quality decreases as density increases,
+but when we paired density with residual sugar, we can clearly see that good wines
+have a sort of *sweet spot* relationship between density and residual sugar, if you focus only
+on the blue dots, you can see that as density increases, if residual sugar is also increased,
+the quality is somewhat kept at the same level, although as seen in previous features,
+once you go past a certain threshold, the pattern dissipates
+
+## 5.3. Machine Learning Models
+
+So, right off the bat, I can guess we problably do not have enough observations
+to create an effective model, since the majority of the wines are of **average**
+quality, as noted previously in the __Wine Quality Histogram__, still, we can try
+creating a linear model to validate our hypothesis:
+
+```{r}
+library(caret)
+set.seed(42)
+
+# select columns according to our exploratory analysis
+feature_columns <- c(
+    'alcohol',
+    'density',
+    'total.sulfur.dioxide',
+    'chlorides',
+    'residual.sugar'
+)
+train_data = subset(df, select=feature_columns)
+train_data$quality <- df$quality
+
+# Take 70% of our data as training data
+split_index <- sample(1:nrow(df), 0.7 * nrow(df))
+df_train <- train_data[split_index,]
+df_test <- train_data[-split_index,]
+
+# Train the linear model
+model <- train(quality~., data=df_train, method='lm')
+
+# Predict the test samples
+predicteds <- predict(model, df_test)
+
+# create a new dataframe for further use containing the predictions and errors
+actuals_preds <- data.frame(cbind(
+  actuals=df_test,
+  predicteds=predicteds,
+  errors=abs(df_test$quality-predicteds)
+))
+```
+
+Now let's take a look at the prediction errors:
+
+```{r echo=FALSE}
+ggplot(data = actuals_preds,
+       aes(y = errors, x = actuals.quality,
+           color = errors)) +
+  labs(title = "Quality x Errors (colored by error intensity)", x = "Actual Quality", y = "Prediction Error", color='Error Value') +
+  scale_color_gradient(low="yellow", high="red") +
+  theme_dark() +
+  geom_point(alpha = 1, size = 1, position = "jitter")
+```
+
+We separated __30% of our dataset as a testing set__ and didn't use it for
+training our linear model, with the model trained using the other __70%__, we
+predicted the wine quality for the samples in the __test set__, and calculated
+the error for each sample as being the difference between the predicted value
+and actual quality of said sample.
+
+So, as suspected, we simply don't have enough observations of high scoring
+wines(above 8) or low scoring ones (below 3), so:
+
+- Our model guessed most points to be of quality 6
+- The biggest errors (red) were when the model should've guessed either 8 or 3,
+meaning it problably guessed 6 again.
+
+---
+
+# 6. Multivariate Analysis
+
+### Were there features that strengthened each other in terms of looking at
+your feature(s) of interest?
+
+- Alcohol and Residual Sugar had an negative correlation, meaning the lower 
+one is, the higher the other, which makes sense, since higher alcohol percentages
+would mean more sugar went through the process of fermentation
+
+- Density and Residual Sugar had an strong relationship, meaning more sugar made
+the wine more dense.
+
+### Were there any interesting or surprising interactions between features?
+
+It was interesting to see the relationship for chlorides(amount of salt),
+were as long as it was below a certain threshold, it could help improve the quality
+but past that mark, it definitely had a negative effect.
+
+### Created Linear Model
+
+Due to the distribution of the dataset, the model can simply learn to guess 6
+all time, and it will get it right most of the time, since the dataset is
+mostly composed of wines with a score of 6.
+
+One alternative would be for us to balance the dataset, by taking only as many
+samples for each quality level, as the lowest frequent quality level, but then,
+we simply wouldn't have enough samples left to use in our linear model.
+
+------
+
+# 7. Final Plots and Summary
+
+Throughout this analysis, I found the two main features for predicting wine quality,
+__alcohol__ and __density__, when it came time to train the model, I discovered
+the distribution of our dataset didn't really give enought data points for predicting
+either high or low quality wine, since most were average quality ones.
+
+The following plots area meant to show these findings in greater detail.
+
+## 7.1. Plot One - main features
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data = df,
+       aes(y = density, x = alcohol,
+           color = quality)) +
+  scale_color_gradient2(midpoint=mean(df$quality), low="red", mid="white", high="blue", space ="Lab") +
+  coord_cartesian(xlim = c(min(df$alcohol), quantile(df$alcohol, 0.999)),
+                  ylim = c(min(df$density), quantile(df$density, 0.999))) +
+  labs(title = "Density x Alcohol (colored by quality)", x = "Alcohol", y = "Density", color = "Quality") +
+  geom_point(alpha = 1, size = 1) +
+  theme_dark() +
+  geom_smooth(method='lm', color='gray')
+```
+
+By analysis of the ggpairs outputed graph, we found two main features for predicting
+wine quality, __alcohol__ and __density__, we knew their correlation score was
+negative, so as one increases, the other decreases, so to have a good wine, we would
+need, mainly:
+
+- a high amount of alcohol
+- a low density score
+
+With proper choice of point colors, background, and removing a few outliers by taking the quantile 
+representing 99,9% of our data, we came to the above plot, were you can clearly
+see better wines (blue dots) have high alcohol percentages, with low density.
+
+## 7.2. Plot Two - sample distribution
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = quality), data = df) +
+  geom_histogram(binwidth=1, fill="darkred", color="white") +
+  stat_bin(binwidth = 1, aes(y=..count.., label=..count..), geom="text", vjust=-.5) +
+  scale_x_continuous(limits = c(0, 10), breaks = seq(0, 10, 1)) +
+  scale_y_continuous(limits = c(0, 2400)) +
+  labs(title = "Wine Quality Histogram", x = "Wine Quality", y = "Sample Count")
+```
+
+When it came time to train an model, I was soon worried by the distribution
+of the observations of this dataset, ideally, we would have an equal amount of
+good, average and bad wines, but this dataset was mostly composed of average wines
+(quality from 5 to 7), and I was worried we wouldn't have enough high quality samples
+to figure out what really took to make an high quality wine, in the above plot
+you can really see how our samples area spread across quality levels.
+
+## 7.3. Plot Three - model performance
+
+```{r echo=FALSE, Plot_Three}
+ggplot(data = actuals_preds,
+       aes(y = errors, x = actuals.quality,
+           color = errors)) +
+  labs(title = "Quality x Errors (colored by error intensity)", x = "Sample Quality", y = "Prediction Error", color='Error Value') +
+  scale_color_gradient(low="yellow", high="red") +
+  theme_dark() +
+  geom_point(alpha = 1, size = 1, position = "jitter")
+
+```
+
+We trained an model despite the hypothesis that we didn't had enough data, but
+it was interesting to see the model act as we expected, by looking the plot you
+can see:
+
+- Most points (predictions) gave us an quality of 6, which was expected as most
+wines are of average quality
+- The biggest errors were when it should've guessed either quality of 8 or 3,
+thus proving we didn't enough data for high or low quality wines to accurately
+predict one.
+
+------
+
+# Reflection
+
+For this project, there were two options of datasets to use, white wine and red
+wine, I choosed __red wine__ because it had the most samples, and I figured it
+was a better representation of real world red wine distributions (which it probably was), 
+but the problem was that it didn't contain an equality distributed dataset, nor
+did it contain enough samples that I could balance it and still have enough samples
+left for an prediction model.
+
+When starting the analysis, the most important plot was the one result from the
+ggpairs function, it simply gave us a very useful and summarized plot for all the
+relationships between the variables, and from there I could further investigate, 
+create and validate hypotheses.
+
+Through this analysis I found that, the right choice of the type of plot, colors,
+titles, and legends can really improve the quality of the analysis and helps
+properly passing the insights found, so it's definitely worth the time to read
+to make an polished graph.
+
+For future work with this dataset it could really help to have at least more high
+quality wines, so it could be easier to identify the features that mostly contributed
+to achieve such quality level.
